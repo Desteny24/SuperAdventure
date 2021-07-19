@@ -6,13 +6,13 @@ namespace Engine.Factories
 {
     internal static class QuestFactory
     {
-        private static readonly List<Quest> _quests = new List<Quest>();
+        private static readonly List<Quest> _quests = new();
 
         static QuestFactory()
         {
             // Declare the items needed to complete the quest, and its reward items.
-            List<ItemQuantity> itemsToComplete = new List<ItemQuantity>();
-            List<ItemQuantity> rewardItems = new List<ItemQuantity>();
+            var itemsToComplete = new List<ItemQuantity>();
+            var rewardItems = new List<ItemQuantity>();
 
             itemsToComplete.Add(new ItemQuantity(9001, 5));
             rewardItems.Add(new ItemQuantity(1002, 1));
