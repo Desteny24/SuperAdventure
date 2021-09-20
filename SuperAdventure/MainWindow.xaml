@@ -7,7 +7,8 @@
         d:DataContext="{d:DesignInstance viewModels:GameSession}"
         mc:Ignorable="d"
         FontSize="11pt"
-        Title="Scott's Awesome Game" Height="768" Width="1024">
+        Title="Scott's Awesome Game" Height="768" Width="1024"
+        KeyDown="MainWindow_OnKeyDown">
     <Window.Resources>
         <BooleanToVisibilityConverter x:Key="BooleanToVisibility"/>
     </Window.Resources>
@@ -94,7 +95,7 @@
 
                     <Image Grid.Row="1" HorizontalAlignment="Center" VerticalAlignment="Center"
                            Height="125" Width="125" 
-                           Source="{Binding CurrentLocation.ImageName}"/>
+                           Source="{Binding CurrentLocation.ImageName, Converter={StaticResource FileToBitmapConverter}}"/>
 
                     <TextBlock Grid.Row="2" HorizontalAlignment="Center"
                                Text="{Binding CurrentLocation.Description}"/>
@@ -115,7 +116,7 @@
                                Text="{Binding CurrentMonster.Name}"/>
                     
                     <Image Grid.Row="1" HorizontalAlignment="Center" VerticalAlignment="Center" Height="125"
-                           Width="125" Source="{Binding CurrentMonster.ImageName}"/>
+                           Width="125" Source="{Binding CurrentMonster.ImageName, Converter={StaticResource FileToBitmapConverter}}"/>
 
                     <StackPanel Grid.Row="2" 
                                 Visibility="{Binding HasMonster, Converter={StaticResource BooleanToVisibility}}"
@@ -128,10 +129,10 @@
 
         </Grid>
         
-        <!-- Inventory and Quests -->
+        <!-- Inventory, Quests and Recipes -->
         <Grid Grid.Row="2" Grid.Column="0" Background="BurlyWood">
-            <TabControl>
-                <TabItem Header="Inventory">
+            <TabControl x:Name="PlayerDataTabControl">
+                <TabItem Header="Inventory" x:Name="InventoryTabItem">
                     <DataGrid ItemsSource="{Binding CurrentPlayer.GroupedInventory}"
                               AutoGenerateColumns="False"
                               HeadersVisibility="Column">
@@ -148,17 +149,36 @@
                     </DataGrid>
                 </TabItem>
 
-                <TabItem Header="Quests">
+                <TabItem Header="Quests" x:Name="QuestsTabItem">
                     <DataGrid ItemsSource="{Binding CurrentPlayer.Quests}"
-                              AutoGenerateColumns="False"
-                              HeadersVisibility="Column">
+                              AutoGenerateColumns="False" HeadersVisibility="Column">
                         <DataGrid.Columns>
                             <DataGridTextColumn Header="Name"
-                                            Binding="{Binding PlayerQuest.Name}"
-                                            Width="*"/>
-                            <DataGridTextColumn Header ="Done?"
-                                            Binding="{Binding IsCompleted}"
-                                            Width="Auto"/>
+                                                Binding="{Binding PlayerQuest.Name, Mode=OneWay}"
+                                                Width="*"/>
+                            <DataGridTextColumn Header="Done?"
+                                                Binding="{Binding IsCompleted, Mode=OneWay}"
+                                                Width="Auto"/>
+                        </DataGrid.Columns>
+                    </DataGrid>
+                </TabItem>
+
+                <TabItem Header="Recipes" x:Name="RecipesTabItem">
+                    <DataGrid ItemsSource="{Binding CurrentPlayer.Recipes}"
+                              AutoGenerateColumns="False" HeadersVisibility="Column">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="Name"
+                                                Binding="{Binding Name, Mode=OneWay}"
+                                                Width="*"/>
+                            <DataGridTemplateColumn MinWidth="75">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <Button Click="OnClick_Craft"
+                                                Width="55"
+                                                Content="Craft"/>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
                         </DataGrid.Columns>
                     </DataGrid>
                 </TabItem>
@@ -176,8 +196,7 @@
             </Grid.ColumnDefinitions>
 
         <!-- Combat Controls -->
-        <Grid Grid.Row="0" Grid.Column="0" Visibility="{Binding HasMonster, Converter={StaticResource BooleanToVisibility}}" 
-              HorizontalAlignment="Center" VerticalAlignment="Center">
+        <Grid Grid.Row="0" Grid.Column="0" HorizontalAlignment="Center" VerticalAlignment="Center">
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto"/>
                 <RowDefinition Height="Auto"/>
@@ -189,11 +208,25 @@
                     <ColumnDefinition Width="50"/>
             </Grid.ColumnDefinitions>
 
-            <ComboBox Grid.Row="0" Grid.Column="0" ItemsSource="{Binding CurrentPlayer.Weapons}"
-                      SelectedItem="{Binding CurrentWeapon}"
-                      DisplayMemberPath="Name" SelectedValuePath="ID"/>
+            <ComboBox Grid.Row="0" Grid.Column="0"
+                      Visibility="{Binding HasMonster, Converter={StaticResource BooleanToVisibility}}"
+                      ItemsSource="{Binding CurrentPlayer.Weapons}"
+                      SelectedItem="{Binding CurrentPlayer.CurrentWeapon}"
+                      DisplayMemberPath="Name"/>
 
-            <Button Grid.Row="0" Grid.Column="2" Content="Use" Click="OnClick_AttackMonster"/>
+            <Button Grid.Row="0" Grid.Column="2" 
+                    Visibility="{Binding HasMonster, Converter={StaticResource BooleanToVisibility}}"
+                    Content="Use" Click="OnClick_AttackMonster"/>
+
+            <ComboBox Grid.Row="1" Grid.Column="0" 
+                      Visibility="{Binding CurrentPlayer.HasConsumable, Converter={StaticResource BooleanToVisibility}}"
+                      ItemsSource="{Binding CurrentPlayer.Consumables}"
+                      SelectedItem="{Binding CurrentPlayer.CurrentConsumable}"
+                      DisplayMemberPath="Name"/>
+
+            <Button Grid.Row="1" Grid.Column="2"
+                    Visibility="{Binding CurrentPlayer.HasConsumable, Converter={StaticResource BooleanToVisibility}}"
+                    Content="Use" Click="OnClick_UseCurrentConsumable"/>
         </Grid>
 
         <!-- Movement Controls -->

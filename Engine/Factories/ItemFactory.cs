@@ -1,39 +1,83 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
+using System.IO;
 using System.Linq;
+using System.Xml;
+using Engine.Actions;
 using Engine.Models;
+using Engine.Shared;
 
 namespace Engine.Factories
 {
     public static class ItemFactory
     {
-        private static readonly List<GameItem> _standardGameItems = new();
+        private const string GAME_DATA_FILENAME = ".\\GameData\\GameItems.xml";
+
+        private static readonly List<GameItem> _standardGameItems = new List<GameItem>();
 
         static ItemFactory()
         {
-            _standardGameItems.Add(new Weapon(1001, "Pointy Stick", 1, 1, 2));
-            _standardGameItems.Add(new Weapon(1002, "Rusty Sword", 5, 1, 3));
-            _standardGameItems.Add(new GameItem(9001, "Snake fang", 1, false));
-            _standardGameItems.Add(new GameItem(9002, "Snakeskin", 2, false));
-            _standardGameItems.Add(new GameItem(9003, "Rat tail", 1, false));
-            _standardGameItems.Add(new GameItem(9004, "Rat fur", 2, false));
-            _standardGameItems.Add(new GameItem(9005, "Spider fang", 1, false));
-            _standardGameItems.Add(new GameItem(9006, "Spider silk", 2, false));
+            if (File.Exists(GAME_DATA_FILENAME))
+            {
+                var data = new XmlDocument();
+                data.LoadXml(File.ReadAllText(GAME_DATA_FILENAME));
+
+                LoadItemsFromNodes(data.SelectNodes("/GameItems/Weapons/Weapon"));
+                LoadItemsFromNodes(data.SelectNodes("/GameItems/HealingItems/HealingItem"));
+                LoadItemsFromNodes(data.SelectNodes("/GameItems/MiscellaneousItems/MiscellaneousItem"));
+            }
         }
 
         public static GameItem CreateGameItem(int itemTypeId)
         {
-            var standardItem = _standardGameItems.FirstOrDefault(item => item.ItemTypeID == itemTypeId);
+            return _standardGameItems.FirstOrDefault(item => item.ItemTypeID == itemTypeId)?.Clone();
+        }
 
-            if (standardItem != null)
+        public static string ItemName(int itemTypeID)
+        {
+            return _standardGameItems.FirstOrDefault(i => i.ItemTypeID == itemTypeID)?.Name ?? "";
+        }
+
+        private static void LoadItemsFromNodes(XmlNodeList nodes)
+        {
+            if (nodes == null)
             {
-                if (standardItem is Weapon)
-                {
-                    return (standardItem as Weapon).Clone();
-                }
-                return standardItem.Clone();
+                return;
             }
 
-            return null;
+            foreach (XmlNode node in nodes)
+            {
+                var itemCategory = DetermineItemCategory(node.Name);
+
+                var gameItem = new GameItem(itemCategory,
+                        node.AttributeAsInt("ID"),
+                        node.AttributeAsString("Name"),
+                        node.AttributeAsInt("Price"),
+                        itemCategory == GameItem.ItemCategory.Weapon);
+
+                if (itemCategory == GameItem.ItemCategory.Weapon)
+                {
+                    gameItem.Action = new AttackWithWeapon(gameItem,
+                            node.AttributeAsInt("MinimumDamage"),
+                            node.AttributeAsInt("MaximumDamage"));
+                }
+                else if (itemCategory == GameItem.ItemCategory.Consumable)
+                {
+                    gameItem.Action = new Heal(gameItem, node.AttributeAsInt("HitPointsToHeal"));
+                }
+
+                _standardGameItems.Add(gameItem);
+            }
+        }
+
+        private static GameItem.ItemCategory DetermineItemCategory(string itemType)
+        {
+            return itemType switch
+            {
+                "Weapon" => GameItem.ItemCategory.Weapon,
+                "HealingItem" => GameItem.ItemCategory.Consumable,
+                _ => GameItem.ItemCategory.Miscellaneous,
+            };
         }
     }
 }

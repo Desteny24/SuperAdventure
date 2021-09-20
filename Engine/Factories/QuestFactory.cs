@@ -1,26 +1,60 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
+using System.IO;
 using System.Linq;
+using System.Xml;
 using Engine.Models;
+using Engine.Shared;
 
 namespace Engine.Factories
 {
     internal static class QuestFactory
     {
+        private const string GAME_DATA_FILENAME = ".\\GameData\\Quests.xml";
         private static readonly List<Quest> _quests = new();
 
         static QuestFactory()
         {
-            // Declare the items needed to complete the quest, and its reward items.
-            var itemsToComplete = new List<ItemQuantity>();
-            var rewardItems = new List<ItemQuantity>();
+            if (File.Exists(GAME_DATA_FILENAME))
+            {
+                XmlDocument data = new XmlDocument();
+                data.LoadXml(File.ReadAllText(GAME_DATA_FILENAME));
 
-            itemsToComplete.Add(new ItemQuantity(9001, 5));
-            rewardItems.Add(new ItemQuantity(1002, 1));
+                LoadQuestsFromNodes(data.SelectNodes("/Quests/Quest"));
+            }
+            else
+            {
+                throw new FileNotFoundException($"Missing data file: {GAME_DATA_FILENAME}");
+            }
+        }
 
-            // Create the quest
-            _quests.Add(new Quest(1, "Clear the herb garden",
-                "Defeat the snakes in the Herbalist's garden",
-                25, 10, itemsToComplete, rewardItems));
+        private static void LoadQuestsFromNodes(XmlNodeList nodes)
+        {
+            foreach (XmlNode node in nodes)
+            {
+                var itemsToComplete = new List<ItemQuantity>();
+                var rewardItems = new List<ItemQuantity>();
+
+                foreach (XmlNode childNode in node.SelectNodes("./ItemsToComplete/Item"))
+                {
+                    itemsToComplete.Add(new ItemQuantity(childNode.AttributeAsInt("ID"),
+                        childNode.AttributeAsInt("Quantity")));
+                }
+
+                foreach (XmlNode childNode in node.SelectNodes("./RewardItems/Item"))
+                {
+                    rewardItems.Add(new ItemQuantity(childNode.AttributeAsInt("ID"),
+                        childNode.AttributeAsInt("Quantity")));
+                }
+
+                _quests.Add(new Quest(node.AttributeAsInt("ID"),
+                    node.SelectSingleNode("./Name")?.InnerText ?? "",
+                    node.SelectSingleNode("./Description")?.InnerText ?? "",
+                    node.AttributeAsInt("RewardExperiencePoints"),
+                    node.AttributeAsInt("RewardGold"),
+                    itemsToComplete,
+                    rewardItems));
+            }
         }
 
         internal static Quest GetQuestByID(int id)

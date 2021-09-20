@@ -26,6 +26,7 @@ namespace Engine.ViewModels
             {
                 if (_currentPlayer != null)
                 {
+                    _currentPlayer.OnActionPerformed -= OnCurrentPlayerPerformedAction;
                     _currentPlayer.OnKilled -= OnCurrentPlayerKilled;
                     _currentPlayer.OnLeveledUp -= OnCurrentPlayerLeveledUp;
                 }
@@ -34,6 +35,7 @@ namespace Engine.ViewModels
 
                 if (_currentPlayer != null)
                 {
+                    _currentPlayer.OnActionPerformed += OnCurrentPlayerPerformedAction;
                     _currentPlayer.OnKilled += OnCurrentPlayerKilled;
                     _currentPlayer.OnLeveledUp += OnCurrentPlayerLeveledUp;
                 }
@@ -67,6 +69,7 @@ namespace Engine.ViewModels
             {
                 if (_currentMonster != null)
                 {
+                    _currentMonster.OnActionPerformed -= OnCurrentMonsterPerformedAction;
                     _currentMonster.OnKilled -= OnCurrentMonsterKilled;
                 }
 
@@ -74,6 +77,7 @@ namespace Engine.ViewModels
 
                 if (CurrentMonster != null)
                 {
+                    _currentMonster.OnActionPerformed += OnCurrentMonsterPerformedAction;
                     _currentMonster.OnKilled += OnCurrentMonsterKilled;
 
                     RaiseMessage("");
@@ -97,8 +101,6 @@ namespace Engine.ViewModels
             }
         }
 
-        public Weapon CurrentWeapon { get; set; }
-
         public bool HasLocationToNorth => CurrentWorld.LocationAt(CurrentLocation.XCoordinate, CurrentLocation.YCoordinate + 1) != null;
         public bool HasLocationToSouth => CurrentWorld.LocationAt(CurrentLocation.XCoordinate, CurrentLocation.YCoordinate - 1) != null;
         public bool HasLocationToWest => CurrentWorld.LocationAt(CurrentLocation.XCoordinate-1, CurrentLocation.YCoordinate) != null;
@@ -119,6 +121,12 @@ namespace Engine.ViewModels
             {
                 CurrentPlayer.AddItemToInventory(ItemFactory.CreateGameItem(1001));
             }
+
+            CurrentPlayer.AddItemToInventory(ItemFactory.CreateGameItem(2001));
+            CurrentPlayer.LearnRecipe(RecipeFactory.RecipeByID(1));
+            CurrentPlayer.AddItemToInventory(ItemFactory.CreateGameItem(3001));
+            CurrentPlayer.AddItemToInventory(ItemFactory.CreateGameItem(3002));
+            CurrentPlayer.AddItemToInventory(ItemFactory.CreateGameItem(3003));
 
             CurrentWorld = WorldFactory.CreateWorld();
 
@@ -171,15 +179,8 @@ namespace Engine.ViewModels
                 {
                     if (CurrentPlayer.HasAllTheseItems(quest.ItemsToComplete))
                     {
-                        // Remove the quest completion items from the player's inventory
-                        foreach (var itemQuantity in quest.ItemsToComplete)
-                        {
-                            for (int i = 0; i < itemQuantity.Quantity; i++)
-                            {
-                                CurrentPlayer.RemoveItemFromInventory(CurrentPlayer.Inventory
-                                    .First(item => item.ItemTypeID == itemQuantity.ItemID));
-                            }
-                        }
+                        CurrentPlayer.RemoveItemsFromInventory(quest.ItemsToComplete);
+
                         RaiseMessage("");
                         RaiseMessage($"You completed the '{quest.Name}' quest");
 
@@ -220,16 +221,16 @@ namespace Engine.ViewModels
                     RaiseMessage("Return with:");
                     foreach (var itemQuantity in quest.ItemsToComplete)
                     {
-                        RaiseMessage($"{itemQuantity.Quantity} \t {ItemFactory.CreateGameItem(itemQuantity.ItemID).Name}");
+                        RaiseMessage($"\t{itemQuantity.Quantity} {ItemFactory.CreateGameItem(itemQuantity.ItemID).Name}");
 
                     }
 
                     RaiseMessage("And you will receive:");
-                    RaiseMessage($"{quest.RewardExperiencePoints} experience points.");
-                    RaiseMessage($"{quest.RewardGold} gold");
+                    RaiseMessage($"\t{quest.RewardExperiencePoints} experience points.");
+                    RaiseMessage($"\t{quest.RewardGold} gold");
                     foreach (var itemQuantity in quest.RewardItems)
                     {
-                        RaiseMessage($"{itemQuantity.Quantity} {ItemFactory.CreateGameItem(itemQuantity.ItemID).Name}");
+                        RaiseMessage($"\t{itemQuantity.Quantity} {ItemFactory.CreateGameItem(itemQuantity.ItemID).Name}");
                     }
                 }
             }
@@ -242,25 +243,18 @@ namespace Engine.ViewModels
 
         public void AttackCurrentMonster()
         {
-            if (CurrentWeapon == null)
+            if (CurrentMonster == null)
+            {
+                return;
+            }
+
+            if (CurrentPlayer.CurrentWeapon == null)
             {
                 RaiseMessage("You must select a weapon to attack.");
                 return;
             }
 
-            // Determine damage to monster
-            var damageToMonster =
-                RandomNumberGenerator.SimpleNumberBetween(CurrentWeapon.MinimumDamage, CurrentWeapon.MaximumDamage);
-
-            if (damageToMonster == 0)
-            {
-                RaiseMessage($"You missed the {CurrentMonster.Name}.");
-            }
-            else
-            {
-                CurrentMonster.TakeDamage(damageToMonster);
-                RaiseMessage($"You hit the {CurrentMonster.Name} for {damageToMonster} points.");
-            }
+            CurrentPlayer.UseCurrentWeaponOn(CurrentMonster);
 
             if (CurrentMonster.IsDead)
             {
@@ -269,21 +263,52 @@ namespace Engine.ViewModels
             }
             else
             {
-                // If monster is still alive, let the monster attack
-                var damageToPlayer =
-                    RandomNumberGenerator.SimpleNumberBetween(CurrentMonster.MinimumDamage,
-                        CurrentMonster.MaximumDamage);
+                CurrentMonster.UseCurrentWeaponOn(CurrentPlayer);
+            }
+        }
 
-                if (damageToPlayer == 0)
+        public void UseCurrentConsumable()
+        {
+            if (CurrentPlayer.CurrentConsumable != null)
+            {
+                CurrentPlayer.UseCurrentConsumable(); 
+            }
+        }
+
+        public void CraftItemUsing(Recipe recipe)
+        {
+            if (CurrentPlayer.HasAllTheseItems(recipe.Ingredients))
+            {
+                CurrentPlayer.RemoveItemsFromInventory(recipe.Ingredients);
+
+                foreach (var itemQuantity in recipe.OutputItems)
                 {
-                    RaiseMessage($"The {CurrentMonster.Name} attacks, but misses you.");
-                }
-                else
-                {
-                    RaiseMessage($"The {CurrentMonster.Name} hit you for {damageToPlayer} points.");
-                    CurrentPlayer.TakeDamage(damageToPlayer);
+                    for (var i = 0; i < itemQuantity.Quantity; i++)
+                    {
+                        var outputItem = ItemFactory.CreateGameItem(itemQuantity.ItemID);
+                        CurrentPlayer.AddItemToInventory(outputItem);
+                        RaiseMessage($"You craft 1 {outputItem.Name}");
+                    }
                 }
             }
+            else
+            {
+                RaiseMessage("You don't have the required ingredients.");
+                foreach (var itemQuantity in recipe.Ingredients)
+                {
+                    RaiseMessage($"   {itemQuantity.Quantity} {ItemFactory.ItemName(itemQuantity.ItemID)}");
+                }
+            }
+        }
+
+        private void OnCurrentPlayerPerformedAction(object sender, string result)
+        {
+            RaiseMessage(result);
+        }
+
+        private void OnCurrentMonsterPerformedAction(object sender, string result)
+        {
+            RaiseMessage(result);
         }
 
         private void OnCurrentPlayerKilled(object sender, System.EventArgs eventArgs)
